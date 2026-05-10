@@ -95,4 +95,22 @@ public class OrderService {
             orderDao.updateById(order);
         }
     }
+
+    public void deleteOrder(Long orderId, Long userId) {
+        Order order = orderDao.selectById(orderId);
+        if (order == null) {
+            throw new RuntimeException("订单不存在");
+        }
+        if (!order.getUserId().equals(userId)) {
+            throw new RuntimeException("无权删除");
+        }
+        orderDao.deleteById(orderId);
+    }
+
+    public void batchDeleteOrders(List<?> orderIds, Long userId) {
+        for (Object id : orderIds) {
+            Long orderId = ((Number) id).longValue();
+            deleteOrder(orderId, userId);
+        }
+    }
 }

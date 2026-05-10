@@ -12,7 +12,7 @@ public class OrderConsumer {
 
     @RabbitListener(queues = RabbitMQConfig.ORDER_QUEUE)
     public void handleOrderCreated(Order order) {
-        log.info("Received order notification: orderNo={}, totalAmount={}, userId={}",
+        log.info("RabbitMQ已收到订单通知：订单号={}, totalAmount={}, userId={}",
                 order.getOrderNo(), order.getTotalAmount(), order.getUserId());
         log.info("Order processing completed for order: {}", order.getOrderNo());
     }

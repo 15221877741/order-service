@@ -38,4 +38,17 @@ public class OrderController {
     public void updateStatus(@PathVariable Long id, @RequestParam Integer status) {
         orderService.updateOrderStatus(id, status);
     }
+
+    @DeleteMapping("/{id}")
+    public void deleteOrder(@PathVariable Long id, @RequestParam Long userId) {
+        orderService.deleteOrder(id, userId);
+    }
+
+    @PostMapping("/batch-delete")
+    public void batchDeleteOrders(@RequestBody Map<String, Object> request) {
+        @SuppressWarnings("unchecked")
+        List<Long> ids = (List<Long>) request.get("ids");
+        Long userId = Long.valueOf(request.get("userId").toString());
+        orderService.batchDeleteOrders(ids, userId);
+    }
 }
