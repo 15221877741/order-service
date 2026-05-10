@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -84,7 +85,14 @@ public class OrderService {
         QueryWrapper<Order> wrapper = new QueryWrapper<>();
         wrapper.eq("user_id", userId);
         wrapper.orderByDesc("create_time");
-        return orderDao.selectList(wrapper);
+        List<Order> orders = orderDao.selectList(wrapper);
+        for (Order order : orders) {
+            List<OrderItem> items = orderItemDao.selectList(
+                    new QueryWrapper<OrderItem>().eq("order_id", order.getId()));
+            order.setProductNames(items.stream().map(OrderItem::getProductName).collect(Collectors.joining(", ")));
+            order.setTotalQuantity(items.stream().mapToInt(OrderItem::getQuantity).sum());
+        }
+        return orders;
     }
 
     @Transactional
