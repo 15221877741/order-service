@@ -6,7 +6,10 @@ import com.example.orderservice.dao.OrderItemDao;
 import com.example.orderservice.entity.Order;
 import com.example.orderservice.entity.OrderItem;
 import com.example.orderservice.entity.Product;
+import com.github.pagehelper.PageHelper;
+import com.github.pagehelper.PageInfo;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -18,6 +21,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OrderService {
@@ -87,12 +91,33 @@ public class OrderService {
         wrapper.orderByDesc("create_time");
         List<Order> orders = orderDao.selectList(wrapper);
         for (Order order : orders) {
-            List<OrderItem> items = orderItemDao.selectList(
-                    new QueryWrapper<OrderItem>().eq("order_id", order.getId()));
-            order.setProductNames(items.stream().map(OrderItem::getProductName).collect(Collectors.joining(", ")));
-            order.setTotalQuantity(items.stream().mapToInt(OrderItem::getQuantity).sum());
+            enrichOrderItems(order);
         }
         return orders;
+    }
+
+    public PageInfo<Order> getUserOrders(Long userId, Integer status, int page, int size) {
+        log.info("分页查询订单 userId={}, status={}, page={}, size={}", userId, status, page, size);
+        PageHelper.startPage(page, size);
+        QueryWrapper<Order> wrapper = new QueryWrapper<>();
+        wrapper.eq("user_id", userId);
+        if (status != null) {
+            wrapper.eq("status", status);
+        }
+        wrapper.orderByDesc("create_time");
+        List<Order> orders = orderDao.selectList(wrapper);
+        for (Order order : orders) {
+            enrichOrderItems(order);
+        }
+        PageInfo<Order> pageInfo = new PageInfo<>(orders);
+        return pageInfo;
+    }
+
+    private void enrichOrderItems(Order order) {
+        List<OrderItem> items = orderItemDao.selectList(
+                new QueryWrapper<OrderItem>().eq("order_id", order.getId()));
+        order.setProductNames(items.stream().map(OrderItem::getProductName).collect(Collectors.joining(", ")));
+        order.setTotalQuantity(items.stream().mapToInt(OrderItem::getQuantity).sum());
     }
 
     @Transactional

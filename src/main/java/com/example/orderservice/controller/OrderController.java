@@ -36,8 +36,11 @@ public class OrderController {
     }
 
     @GetMapping("/user/me")
-    public Result<?> getMyOrders() {
-        return Result.success(orderService.getUserOrders(getCurrentUserId()));
+    public Result<?> getMyOrders(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) Integer status) {
+        return Result.success(orderService.getUserOrders(getCurrentUserId(), status, page, size));
     }
 
     @PutMapping("/{id}/status")

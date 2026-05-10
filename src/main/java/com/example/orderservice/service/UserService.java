@@ -4,10 +4,12 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.example.orderservice.dao.UserDao;
 import com.example.orderservice.entity.User;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserService {
@@ -16,6 +18,7 @@ public class UserService {
 
     public User register(String username, String password, String nickname) {
         if (userDao.selectOne(new QueryWrapper<User>().eq("username", username)) != null) {
+            log.warn("注册失败，用户名已存在: {}", username);
             throw new RuntimeException("用户名已存在");
         }
         User user = new User();
@@ -30,9 +33,11 @@ public class UserService {
     public User login(String username, String password) {
         User user = userDao.selectOne(new QueryWrapper<User>().eq("username", username));
         if (user == null) {
+            log.warn("登录失败，用户不存在: {}", username);
             throw new RuntimeException("用户不存在");
         }
         if (!passwordEncoder.matches(password, user.getPassword())) {
+            log.warn("登录失败，密码错误: {}", username);
             throw new RuntimeException("密码错误");
         }
         return user;
