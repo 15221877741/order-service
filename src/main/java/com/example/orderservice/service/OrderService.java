@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -108,9 +109,20 @@ public class OrderService {
     }
 
     public void batchDeleteOrders(List<?> orderIds, Long userId) {
+        List<Long> validIds = new ArrayList<>();
+
         for (Object id : orderIds) {
             Long orderId = ((Number) id).longValue();
-            deleteOrder(orderId, userId);
+            Order order = orderDao.selectById(orderId);
+            if (order == null) {
+                throw new RuntimeException("订单不存在: " + orderId);
+            }
+            if (order.getStatus() != 2) {
+                throw new RuntimeException("删除失败，订单不是已取消的订单");
+            }
+            validIds.add(orderId);
         }
+
+        orderDao.deleteBatchIds(validIds);
     }
 }
