@@ -1,11 +1,11 @@
 package com.example.orderservice.service;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.example.orderservice.dao.ProductDao;
 import com.example.orderservice.entity.Product;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+
 import java.util.List;
 
 @Service
