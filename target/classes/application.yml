@@ -21,6 +21,9 @@ spring:
     username: admin
     password: admin
 
+jwt:
+  secret: D3j9kQ7mXn2rY5vB8wE1hG4sJ6uL0pO3iA8cF7tR2yU5nW1qK4zM9xV6bC0fH3
+
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
