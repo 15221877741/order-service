@@ -43,6 +43,11 @@ public class OrderController {
         return Result.success(orderService.getUserOrders(getCurrentUserId(), status, page, size));
     }
 
+    @GetMapping("/user/me/stats")
+    public Result<?> getMyOrderStats() {
+        return Result.success(orderService.getOrderStats(getCurrentUserId()));
+    }
+
     @PutMapping("/{id}/status")
     public Result<?> updateStatus(@PathVariable Long id, @RequestParam Integer status) {
         orderService.updateOrderStatus(id, status);

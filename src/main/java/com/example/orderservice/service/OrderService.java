@@ -18,6 +18,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -111,6 +112,14 @@ public class OrderService {
         }
         PageInfo<Order> pageInfo = new PageInfo<>(orders);
         return pageInfo;
+    }
+
+    public Map<String, Long> getOrderStats(Long userId) {
+        long total = orderDao.selectCount(new QueryWrapper<Order>().eq("user_id", userId));
+        long pending = orderDao.selectCount(new QueryWrapper<Order>().eq("user_id", userId).eq("status", 0));
+        long completed = orderDao.selectCount(new QueryWrapper<Order>().eq("user_id", userId).eq("status", 1));
+        long cancelled = orderDao.selectCount(new QueryWrapper<Order>().eq("user_id", userId).eq("status", 2));
+        return Map.of("total", total, "pending", pending, "completed", completed, "cancelled", cancelled);
     }
 
     private void enrichOrderItems(Order order) {
