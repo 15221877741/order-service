@@ -1,5 +1,6 @@
 package com.example.orderservice.controller;
 
+import com.example.orderservice.common.Result;
 import com.example.orderservice.entity.Order;
 import com.example.orderservice.service.OrderService;
 import lombok.RequiredArgsConstructor;
@@ -15,40 +16,44 @@ public class OrderController {
     private final OrderService orderService;
 
     @PostMapping
-    public Order create(@RequestBody Map<String, Object> request) {
+    public Result<?> create(@RequestBody Map<String, Object> request) {
         Long userId = Long.valueOf(request.get("userId").toString());
         @SuppressWarnings("unchecked")
-        List<Long> productIds = (List<Long>) request.get("productIds");
+        List<?> productIds = (List<?>) request.get("productIds");
         @SuppressWarnings("unchecked")
-        List<Integer> quantities = (List<Integer>) request.get("quantities");
-        return orderService.createOrder(userId, productIds, quantities);
+        List<?> quantities = (List<?>) request.get("quantities");
+        Order order = orderService.createOrder(userId, productIds, quantities);
+        return Result.success(order);
     }
 
     @GetMapping("/{id}")
-    public Order get(@PathVariable Long id) {
-        return orderService.getOrder(id);
+    public Result<?> get(@PathVariable Long id) {
+        return Result.success(orderService.getOrder(id));
     }
 
     @GetMapping("/user/{userId}")
-    public List<Order> getUserOrders(@PathVariable Long userId) {
-        return orderService.getUserOrders(userId);
+    public Result<?> getUserOrders(@PathVariable Long userId) {
+        return Result.success(orderService.getUserOrders(userId));
     }
 
     @PutMapping("/{id}/status")
-    public void updateStatus(@PathVariable Long id, @RequestParam Integer status) {
+    public Result<?> updateStatus(@PathVariable Long id, @RequestParam Integer status) {
         orderService.updateOrderStatus(id, status);
+        return Result.success("状态更新成功");
     }
 
     @DeleteMapping("/{id}")
-    public void deleteOrder(@PathVariable Long id, @RequestParam Long userId) {
+    public Result<?> deleteOrder(@PathVariable Long id, @RequestParam Long userId) {
         orderService.deleteOrder(id, userId);
+        return Result.success("删除成功");
     }
 
     @PostMapping("/batch-delete")
-    public void batchDeleteOrders(@RequestBody Map<String, Object> request) {
+    public Result<?> batchDeleteOrders(@RequestBody Map<String, Object> request) {
         @SuppressWarnings("unchecked")
-        List<Long> ids = (List<Long>) request.get("ids");
+        List<?> ids = (List<?>) request.get("ids");
         Long userId = Long.valueOf(request.get("userId").toString());
         orderService.batchDeleteOrders(ids, userId);
+        return Result.success("批量删除成功");
     }
 }
