@@ -5,6 +5,7 @@ import com.example.orderservice.dao.OrderDao;
 import com.example.orderservice.dao.OrderItemDao;
 import com.example.orderservice.entity.Order;
 import com.example.orderservice.entity.OrderItem;
+import com.example.orderservice.entity.Product;
 import lombok.RequiredArgsConstructor;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -27,22 +28,24 @@ public class OrderService {
     private static final String ORDER_QUEUE = "order.create";
 
     @Transactional
-    public Order createOrder(Long userId, List<Long> productIds, List<Integer> quantities) {
+    public Order createOrder(Long userId, List<?> productIds, List<?> quantities) {
         BigDecimal totalAmount = BigDecimal.ZERO;
 
         for (int i = 0; i < productIds.size(); i++) {
-            var product = productService.getProduct(productIds.get(i));
+            Long productId = ((Number) productIds.get(i)).longValue();
+            Integer quantity = ((Number) quantities.get(i)).intValue();
+            Product product = productService.getProduct(productId);
             if (product == null) {
-                throw new RuntimeException("Product not found: " + productIds.get(i));
+                throw new RuntimeException("Product not found: " + productId);
             }
-            if (product.getStock() < quantities.get(i)) {
+            if (product.getStock() < quantity) {
                 throw new RuntimeException("Insufficient stock for product: " + product.getName());
             }
-            boolean stockReduced = productService.reduceStock(productIds.get(i), quantities.get(i));
+            boolean stockReduced = productService.reduceStock(productId, quantity);
             if (!stockReduced) {
                 throw new RuntimeException("Failed to reduce stock for product: " + product.getName());
             }
-            totalAmount = totalAmount.add(product.getPrice().multiply(BigDecimal.valueOf(quantities.get(i))));
+            totalAmount = totalAmount.add(product.getPrice().multiply(BigDecimal.valueOf(quantity)));
         }
 
         Order order = new Order();
@@ -55,13 +58,15 @@ public class OrderService {
         orderDao.insert(order);
 
         for (int i = 0; i < productIds.size(); i++) {
-            var product = productService.getProduct(productIds.get(i));
+            Long productId = ((Number) productIds.get(i)).longValue();
+            Integer quantity = ((Number) quantities.get(i)).intValue();
+            Product product = productService.getProduct(productId);
             OrderItem item = new OrderItem();
             item.setOrderId(order.getId());
-            item.setProductId(productIds.get(i));
+            item.setProductId(productId);
             item.setProductName(product.getName());
             item.setPrice(product.getPrice());
-            item.setQuantity(quantities.get(i));
+            item.setQuantity(quantity);
             orderItemDao.insert(item);
         }
 

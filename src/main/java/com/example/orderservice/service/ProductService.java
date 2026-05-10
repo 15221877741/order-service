@@ -2,6 +2,8 @@ package com.example.orderservice.service;
 
 import com.example.orderservice.dao.ProductDao;
 import com.example.orderservice.entity.Product;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -13,6 +15,7 @@ import java.util.List;
 public class ProductService {
     private final ProductDao productDao;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     private static final String PRODUCT_CACHE_KEY = "product:";
     private static final long CACHE_EXPIRE_SECONDS = 3600;
@@ -25,13 +28,16 @@ public class ProductService {
 
     public Product getProduct(Long id) {
         String key = PRODUCT_CACHE_KEY + id;
-        Product cached = (Product) redisTemplate.opsForValue().get(key);
+        Object cached = redisTemplate.opsForValue().get(key);
         if (cached != null) {
-            return cached;
+            if (cached instanceof Product) {
+                return (Product) cached;
+            }
+            return objectMapper.convertValue(cached, Product.class);
         }
         Product product = productDao.selectById(id);
         if (product != null) {
-            redisTemplate.opsForValue().set(key, product, CACHE_EXPIRE_SECONDS, java.util.concurrent.TimeUnit.SECONDS);
+            cacheProduct(product);
         }
         return product;
     }
