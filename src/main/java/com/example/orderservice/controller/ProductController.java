@@ -1,5 +1,6 @@
 package com.example.orderservice.controller;
 
+import com.example.orderservice.common.Result;
 import com.example.orderservice.entity.Product;
 import com.example.orderservice.service.ProductService;
 import lombok.RequiredArgsConstructor;
@@ -14,19 +15,17 @@ public class ProductController {
     private final ProductService productService;
 
     @GetMapping
-    public List<Product> list() {
-
-        return productService.listProducts();
+    public Result<?> list() {
+        return Result.success(productService.listProducts());
     }
 
     @GetMapping("/{id}")
-    public Product get(@PathVariable Long id) {
-        return productService.getProduct(id);
+    public Result<?> get(@PathVariable Long id) {
+        return Result.success(productService.getProduct(id));
     }
 
     @PostMapping
-    public Product create(@RequestBody Product product) {
-        productService.listProducts();
-        return product;
+    public Result<?> create(@RequestBody Product product) {
+        return Result.success(product);
     }
 }

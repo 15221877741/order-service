@@ -1,0 +1,16 @@
+D:\opencodeworkspace\order-service\src\main\java\com\example\orderservice\dao\ProductDao.java
+D:\opencodeworkspace\order-service\src\main\java\com\example\orderservice\controller\OrderController.java
+D:\opencodeworkspace\order-service\src\main\java\com\example\orderservice\dao\OrderItemDao.java
+D:\opencodeworkspace\order-service\src\main\java\com\example\orderservice\entity\OrderItem.java
+D:\opencodeworkspace\order-service\src\main\java\com\example\orderservice\service\OrderService.java
+D:\opencodeworkspace\order-service\src\main\java\com\example\orderservice\config\RabbitMQConfig.java
+D:\opencodeworkspace\order-service\src\main\java\com\example\orderservice\config\RedisConfig.java
+D:\opencodeworkspace\order-service\src\main\java\com\example\orderservice\entity\Order.java
+D:\opencodeworkspace\order-service\src\main\java\com\example\orderservice\entity\Product.java
+D:\opencodeworkspace\order-service\src\main\java\com\example\orderservice\OrderServiceApplication.java
+D:\opencodeworkspace\order-service\src\main\java\com\example\orderservice\service\ProductService.java
+D:\opencodeworkspace\order-service\src\main\java\com\example\orderservice\common\Result.java
+D:\opencodeworkspace\order-service\src\main\java\com\example\orderservice\controller\ProductController.java
+D:\opencodeworkspace\order-service\src\main\java\com\example\orderservice\consumer\OrderConsumer.java
+D:\opencodeworkspace\order-service\src\main\java\com\example\orderservice\dao\OrderDao.java
+D:\opencodeworkspace\order-service\src\main\java\com\example\orderservice\common\GlobalExceptionHandler.java
