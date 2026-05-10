@@ -1,0 +1,63 @@
+package com.example.orderservice.service;
+
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.example.orderservice.dao.ProductDao;
+import com.example.orderservice.entity.Product;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.stereotype.Service;
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+public class ProductService {
+    private final ProductDao productDao;
+    private final RedisTemplate<String, Object> redisTemplate;
+
+    private static final String PRODUCT_CACHE_KEY = "product:";
+    private static final long CACHE_EXPIRE_SECONDS = 3600;
+
+    public List<Product> listProducts() {
+        List<Product> products = productDao.selectList(null);
+        products.forEach(this::cacheProduct);
+        return products;
+    }
+
+    public Product getProduct(Long id) {
+        String key = PRODUCT_CACHE_KEY + id;
+        Product cached = (Product) redisTemplate.opsForValue().get(key);
+        if (cached != null) {
+            return cached;
+        }
+        Product product = productDao.selectById(id);
+        if (product != null) {
+            redisTemplate.opsForValue().set(key, product, CACHE_EXPIRE_SECONDS, java.util.concurrent.TimeUnit.SECONDS);
+        }
+        return product;
+    }
+
+    public boolean reduceStock(Long productId, Integer quantity) {
+        String lockKey = "stock:lock:" + productId;
+        Boolean locked = redisTemplate.opsForValue().setIfAbsent(lockKey, "1", 10, java.util.concurrent.TimeUnit.SECONDS);
+        if (Boolean.TRUE.equals(locked)) {
+            try {
+                Product product = getProduct(productId);
+                if (product == null || product.getStock() < quantity) {
+                    return false;
+                }
+                product.setStock(product.getStock() - quantity);
+                productDao.updateById(product);
+                redisTemplate.delete(PRODUCT_CACHE_KEY + productId);
+                return true;
+            } finally {
+                redisTemplate.delete(lockKey);
+            }
+        }
+        return false;
+    }
+
+    private void cacheProduct(Product product) {
+        String key = PRODUCT_CACHE_KEY + product.getId();
+        redisTemplate.opsForValue().set(key, product, CACHE_EXPIRE_SECONDS, java.util.concurrent.TimeUnit.SECONDS);
+    }
+}
