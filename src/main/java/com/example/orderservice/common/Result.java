@@ -8,11 +8,11 @@ public class Result<T> {
     private String message;
     private T data;
 
-    public static Result<?> success() {
+    public static <T> Result<T> success() {
         return success(null);
     }
 
-    public static Result<?> success(T data) {
+    public static <T> Result<T> success(T data) {
         Result<T> result = new Result<>();
         result.setCode(200);
         result.setMessage("success");
@@ -20,12 +20,12 @@ public class Result<T> {
         return result;
     }
 
-    public static Result<?> error(String message) {
+    public static <T> Result<T> error(String message) {
         return error(500, message);
     }
 
-    public static Result<?> error(int code, String message) {
-        Result<?> result = new Result<>();
+    public static <T> Result<T> error(int code, String message) {
+        Result<T> result = new Result<>();
         result.setCode(code);
         result.setMessage(message);
         return result;

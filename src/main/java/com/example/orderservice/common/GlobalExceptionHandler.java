@@ -8,6 +8,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(RuntimeException.class)
     public Result<?> handleRuntimeException(RuntimeException e) {
+
         return Result.error(500, e.getMessage());
     }
 

@@ -118,7 +118,7 @@ public class OrderService {
                 throw new RuntimeException("订单不存在: " + orderId);
             }
             if (order.getStatus() != 2) {
-                throw new RuntimeException("删除失败，订单不是已取消的订单");
+                throw new RuntimeException("删除失败111，订单不是已取消的订单");
             }
             validIds.add(orderId);
         }
