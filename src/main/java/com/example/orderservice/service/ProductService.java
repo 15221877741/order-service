@@ -2,8 +2,9 @@ package com.example.orderservice.service;
 
 import com.example.orderservice.dao.ProductDao;
 import com.example.orderservice.entity.Product;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -15,7 +16,9 @@ import java.util.List;
 public class ProductService {
     private final ProductDao productDao;
     private final RedisTemplate<String, Object> redisTemplate;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = new ObjectMapper()
+            .registerModule(new JavaTimeModule())
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
     private static final String PRODUCT_CACHE_KEY = "product:";
     private static final long CACHE_EXPIRE_SECONDS = 3600;
