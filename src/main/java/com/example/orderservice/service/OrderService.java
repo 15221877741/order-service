@@ -6,7 +6,6 @@ import com.example.orderservice.dao.OrderItemDao;
 import com.example.orderservice.entity.Order;
 import com.example.orderservice.entity.OrderItem;
 import com.example.orderservice.entity.Product;
-import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,9 +34,15 @@ public class OrderService {
 
     private static final String ORDER_QUEUE = "order.create";
     private static final String STATS_CACHE_KEY = "order:stats:";
+    private static final String LIST_CACHE_KEY = "order:list:";
+    private static final long LIST_CACHE_TTL = 120;
 
     private void clearStatsCache(Long userId) {
         redisTemplate.delete(STATS_CACHE_KEY + userId);
+    }
+
+    private void clearListCache(Long userId) {
+        redisTemplate.delete(LIST_CACHE_KEY + userId);
     }
 
     @Transactional
@@ -90,6 +95,7 @@ public class OrderService {
 
         rabbitTemplate.convertAndSend(ORDER_QUEUE, order);
         clearStatsCache(userId);
+        clearListCache(userId);
 
         return order;
     }
@@ -111,19 +117,40 @@ public class OrderService {
 
     public PageInfo<Order> getUserOrders(Long userId, Integer status, int page, int size) {
         log.info("分页查询订单 userId={}, status={}, page={}, size={}", userId, status, page, size);
-        PageHelper.startPage(page, size);
-        QueryWrapper<Order> wrapper = new QueryWrapper<>();
-        wrapper.eq("user_id", userId);
-        if (status != null) {
-            wrapper.eq("status", status);
-        }
-        wrapper.orderByDesc("create_time");
-        List<Order> orders = orderDao.selectList(wrapper);
-        for (Order order : orders) {
-            enrichOrderItems(order);
+        String key = LIST_CACHE_KEY + userId;
+        @SuppressWarnings("unchecked")
+        List<Order> allOrders = (List<Order>) redisTemplate.opsForValue().get(key);
+        if (allOrders == null) {
+            QueryWrapper<Order> wrapper = new QueryWrapper<>();
+            wrapper.eq("user_id", userId).orderByDesc("create_time");
+            allOrders = orderDao.selectList(wrapper);
+            for (Order order : allOrders) {
+                enrichOrderItems(order);
+            }
+            redisTemplate.opsForValue().set(key, allOrders, LIST_CACHE_TTL, TimeUnit.SECONDS);
         }
 
-        return new PageInfo<>(orders);
+        List<Order> filtered = allOrders;
+        if (status != null) {
+            filtered = allOrders.stream().filter(o -> status.equals(o.getStatus())).collect(Collectors.toList());
+        }
+
+        int total = filtered.size();
+        int totalPages = Math.max((int) Math.ceil((double) total / size), 1);
+        int fromIndex = Math.min((page - 1) * size, total);
+        int toIndex = Math.min(fromIndex + size, total);
+        List<Order> pageList = filtered.subList(fromIndex, toIndex);
+
+        PageInfo<Order> pageInfo = new PageInfo<>(pageList);
+        pageInfo.setPageNum(page);
+        pageInfo.setPageSize(size);
+        pageInfo.setTotal(total);
+        pageInfo.setPages(totalPages);
+        pageInfo.setIsFirstPage(page == 1);
+        pageInfo.setIsLastPage(page >= totalPages);
+        pageInfo.setHasNextPage(page < totalPages);
+        pageInfo.setHasPreviousPage(page > 1);
+        return pageInfo;
     }
 
     public Map<String, Long> getOrderStats(Long userId) {
@@ -156,6 +183,7 @@ public class OrderService {
             order.setUpdateTime(LocalDateTime.now());
             orderDao.updateById(order);
             clearStatsCache(order.getUserId());
+            clearListCache(order.getUserId());
         }
     }
 
@@ -169,6 +197,7 @@ public class OrderService {
         }
         orderDao.deleteById(orderId);
         clearStatsCache(userId);
+        clearListCache(userId);
     }
 
     public void batchDeleteOrders(List<?> orderIds, Long userId) {
@@ -191,5 +220,6 @@ public class OrderService {
 
         orderDao.deleteBatchIds(validIds);
         clearStatsCache(userId);
+        clearListCache(userId);
     }
 }
