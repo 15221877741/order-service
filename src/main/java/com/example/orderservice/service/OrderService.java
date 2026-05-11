@@ -109,9 +109,7 @@ public class OrderService {
         wrapper.eq("user_id", userId);
         wrapper.orderByDesc("create_time");
         List<Order> orders = orderDao.selectList(wrapper);
-        for (Order order : orders) {
-            enrichOrderItems(order);
-        }
+        batchEnrichOrders(orders);
         return orders;
     }
 
@@ -124,9 +122,7 @@ public class OrderService {
             QueryWrapper<Order> wrapper = new QueryWrapper<>();
             wrapper.eq("user_id", userId).orderByDesc("create_time");
             allOrders = orderDao.selectList(wrapper);
-            for (Order order : allOrders) {
-                enrichOrderItems(order);
-            }
+            batchEnrichOrders(allOrders);
             redisTemplate.opsForValue().set(key, allOrders, LIST_CACHE_TTL, TimeUnit.SECONDS);
         }
 
@@ -159,10 +155,18 @@ public class OrderService {
         Map<String, Long> cached = (Map<String, Long>) redisTemplate.opsForValue().get(key);
         if (cached != null) return cached;
 
-        long total = orderDao.selectCount(new QueryWrapper<Order>().eq("user_id", userId));
-        long pending = orderDao.selectCount(new QueryWrapper<Order>().eq("user_id", userId).eq("status", 0));
-        long completed = orderDao.selectCount(new QueryWrapper<Order>().eq("user_id", userId).eq("status", 1));
-        long cancelled = orderDao.selectCount(new QueryWrapper<Order>().eq("user_id", userId).eq("status", 2));
+        List<Map<String, Object>> rows = orderDao.selectMaps(
+                new QueryWrapper<Order>()
+                        .select("COALESCE(SUM(CASE WHEN status = 0 THEN 1 ELSE 0 END), 0) as pending")
+                        .select("COALESCE(SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END), 0) as completed")
+                        .select("COALESCE(SUM(CASE WHEN status = 2 THEN 1 ELSE 0 END), 0) as cancelled")
+                        .select("COUNT(*) as total")
+                        .eq("user_id", userId));
+        Map<String, Object> row = rows.get(0);
+        long total = ((Number) row.get("total")).longValue();
+        long pending = ((Number) row.get("pending")).longValue();
+        long completed = ((Number) row.get("completed")).longValue();
+        long cancelled = ((Number) row.get("cancelled")).longValue();
         Map<String, Long> stats = Map.of("total", total, "pending", pending, "completed", completed, "cancelled", cancelled);
         redisTemplate.opsForValue().set(key, stats, 30, TimeUnit.SECONDS);
         return stats;
@@ -173,6 +177,20 @@ public class OrderService {
                 new QueryWrapper<OrderItem>().eq("order_id", order.getId()));
         order.setProductNames(items.stream().map(OrderItem::getProductName).collect(Collectors.joining(", ")));
         order.setTotalQuantity(items.stream().mapToInt(OrderItem::getQuantity).sum());
+    }
+
+    private void batchEnrichOrders(List<Order> orders) {
+        if (orders.isEmpty()) return;
+        List<Long> orderIds = orders.stream().map(Order::getId).collect(Collectors.toList());
+        List<OrderItem> allItems = orderItemDao.selectList(
+                new QueryWrapper<OrderItem>().in("order_id", orderIds));
+        Map<Long, List<OrderItem>> itemsByOrder = allItems.stream()
+                .collect(Collectors.groupingBy(OrderItem::getOrderId));
+        for (Order order : orders) {
+            List<OrderItem> items = itemsByOrder.getOrDefault(order.getId(), List.of());
+            order.setProductNames(items.stream().map(OrderItem::getProductName).collect(Collectors.joining(", ")));
+            order.setTotalQuantity(items.stream().mapToInt(OrderItem::getQuantity).sum());
+        }
     }
 
     @Transactional
