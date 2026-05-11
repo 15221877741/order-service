@@ -6,6 +6,7 @@ import com.example.orderservice.dao.OrderItemDao;
 import com.example.orderservice.entity.Order;
 import com.example.orderservice.entity.OrderItem;
 import com.example.orderservice.entity.Product;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.pagehelper.PageInfo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,10 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -31,6 +29,7 @@ public class OrderService {
     private final ProductService productService;
     private final RedisTemplate<String, Object> redisTemplate;
     private final RabbitTemplate rabbitTemplate;
+    private final ObjectMapper objectMapper;
 
     private static final String ORDER_QUEUE = "order.create";
     private static final String STATS_CACHE_KEY = "order:stats:";
@@ -116,8 +115,7 @@ public class OrderService {
     public PageInfo<Order> getUserOrders(Long userId, Integer status, int page, int size) {
         log.info("分页查询订单 userId={}, status={}, page={}, size={}", userId, status, page, size);
         String key = LIST_CACHE_KEY + userId;
-        @SuppressWarnings("unchecked")
-        List<Order> allOrders = (List<Order>) redisTemplate.opsForValue().get(key);
+        List<Order> allOrders = getCachedOrderList(key);
         if (allOrders == null) {
             QueryWrapper<Order> wrapper = new QueryWrapper<>();
             wrapper.eq("user_id", userId).orderByDesc("create_time");
@@ -177,6 +175,23 @@ public class OrderService {
                 new QueryWrapper<OrderItem>().eq("order_id", order.getId()));
         order.setProductNames(items.stream().map(OrderItem::getProductName).collect(Collectors.joining(", ")));
         order.setTotalQuantity(items.stream().mapToInt(OrderItem::getQuantity).sum());
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Order> getCachedOrderList(String key) {
+        Object cached = redisTemplate.opsForValue().get(key);
+        if (cached == null) return null;
+        if (cached instanceof List) {
+            List<?> list = (List<?>) cached;
+            if (!list.isEmpty() && list.get(0) instanceof Order) {
+                return (List<Order>) cached;
+            }
+            return list.stream()
+                    .map(item -> item instanceof LinkedHashMap ? objectMapper.convertValue(item, Order.class) : null)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+        }
+        return null;
     }
 
     private void batchEnrichOrders(List<Order> orders) {
