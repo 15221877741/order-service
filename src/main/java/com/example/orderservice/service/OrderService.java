@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -33,9 +34,19 @@ public class OrderService {
     private final RabbitTemplate rabbitTemplate;
 
     private static final String ORDER_QUEUE = "order.create";
+    private static final String STATS_CACHE_KEY = "order:stats:";
+
+    private void clearStatsCache(Long userId) {
+        redisTemplate.delete(STATS_CACHE_KEY + userId);
+    }
 
     @Transactional
     public Order createOrder(Long userId, List<?> productIds, List<?> quantities) {
+        String submitKey = "order:submit:" + userId + ":" + productIds.hashCode();
+        Boolean submitted = redisTemplate.opsForValue().setIfAbsent(submitKey, "1", 3, TimeUnit.SECONDS);
+        if (!Boolean.TRUE.equals(submitted)) {
+            throw new RuntimeException("请勿重复提交");
+        }
         BigDecimal totalAmount = BigDecimal.ZERO;
 
         for (int i = 0; i < productIds.size(); i++) {
@@ -78,6 +89,7 @@ public class OrderService {
         }
 
         rabbitTemplate.convertAndSend(ORDER_QUEUE, order);
+        clearStatsCache(userId);
 
         return order;
     }
@@ -115,11 +127,18 @@ public class OrderService {
     }
 
     public Map<String, Long> getOrderStats(Long userId) {
+        String key = STATS_CACHE_KEY + userId;
+        @SuppressWarnings("unchecked")
+        Map<String, Long> cached = (Map<String, Long>) redisTemplate.opsForValue().get(key);
+        if (cached != null) return cached;
+
         long total = orderDao.selectCount(new QueryWrapper<Order>().eq("user_id", userId));
         long pending = orderDao.selectCount(new QueryWrapper<Order>().eq("user_id", userId).eq("status", 0));
         long completed = orderDao.selectCount(new QueryWrapper<Order>().eq("user_id", userId).eq("status", 1));
         long cancelled = orderDao.selectCount(new QueryWrapper<Order>().eq("user_id", userId).eq("status", 2));
-        return Map.of("total", total, "pending", pending, "completed", completed, "cancelled", cancelled);
+        Map<String, Long> stats = Map.of("total", total, "pending", pending, "completed", completed, "cancelled", cancelled);
+        redisTemplate.opsForValue().set(key, stats, 30, TimeUnit.SECONDS);
+        return stats;
     }
 
     private void enrichOrderItems(Order order) {
@@ -136,6 +155,7 @@ public class OrderService {
             order.setStatus(status);
             order.setUpdateTime(LocalDateTime.now());
             orderDao.updateById(order);
+            clearStatsCache(order.getUserId());
         }
     }
 
@@ -148,6 +168,7 @@ public class OrderService {
             throw new RuntimeException("无权删除");
         }
         orderDao.deleteById(orderId);
+        clearStatsCache(userId);
     }
 
     public void batchDeleteOrders(List<?> orderIds, Long userId) {
@@ -169,5 +190,6 @@ public class OrderService {
         }
 
         orderDao.deleteBatchIds(validIds);
+        clearStatsCache(userId);
     }
 }
