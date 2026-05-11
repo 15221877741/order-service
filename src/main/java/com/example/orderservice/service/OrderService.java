@@ -157,10 +157,10 @@ public class OrderService {
 
         List<Map<String, Object>> rows = orderDao.selectMaps(
                 new QueryWrapper<Order>()
-                        .select("COALESCE(SUM(CASE WHEN status = 0 THEN 1 ELSE 0 END), 0) as pending")
-                        .select("COALESCE(SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END), 0) as completed")
-                        .select("COALESCE(SUM(CASE WHEN status = 2 THEN 1 ELSE 0 END), 0) as cancelled")
-                        .select("COUNT(*) as total")
+                        .select("COALESCE(SUM(CASE WHEN status = 0 THEN 1 ELSE 0 END), 0) as pending",
+                                "COALESCE(SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END), 0) as completed",
+                                "COALESCE(SUM(CASE WHEN status = 2 THEN 1 ELSE 0 END), 0) as cancelled",
+                                "COUNT(*) as total")
                         .eq("user_id", userId));
         Map<String, Object> row = rows.get(0);
         long total = ((Number) row.get("total")).longValue();
