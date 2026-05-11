@@ -122,8 +122,8 @@ public class OrderService {
         for (Order order : orders) {
             enrichOrderItems(order);
         }
-        PageInfo<Order> pageInfo = new PageInfo<>(orders);
-        return pageInfo;
+
+        return new PageInfo<>(orders);
     }
 
     public Map<String, Long> getOrderStats(Long userId) {
