@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.orderservice.dao.ProductDao">
+
+    <!-- 批量更新库存：一次 CASE WHEN 更新多个商品 -->
+    <update id="batchUpdateStock">
+        UPDATE t_product SET stock =
+        <foreach collection="list" item="p" separator=" " open="CASE id" close="END">
+            WHEN #{p.id} THEN #{p.stock}
+        </foreach>
+        WHERE id IN
+        <foreach collection="list" item="p" separator="," open="(" close=")">
+            #{p.id}
+        </foreach>
+    </update>
+
+</mapper>
