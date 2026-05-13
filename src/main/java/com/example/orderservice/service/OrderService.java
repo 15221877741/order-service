@@ -46,11 +46,11 @@ public class OrderService {
 
     @Transactional
     public Order createOrder(Long userId, List<?> productIds, List<?> quantities) {
-        String submitKey = "order:submit:" + userId + ":" + productIds.hashCode();
-        Boolean submitted = redisTemplate.opsForValue().setIfAbsent(submitKey, "1", 3, TimeUnit.SECONDS);
-        if (!Boolean.TRUE.equals(submitted)) {
-            throw new RuntimeException("请勿重复提交");
-        }
+//        String submitKey = "order:submit:" + userId + ":" + productIds.hashCode();
+//        Boolean submitted = redisTemplate.opsForValue().setIfAbsent(submitKey, "1", 3, TimeUnit.SECONDS);
+//        if (!Boolean.TRUE.equals(submitted)) {
+//            throw new RuntimeException("请勿重复提交");
+//        }
         BigDecimal totalAmount = BigDecimal.ZERO;
 
         for (int i = 0; i < productIds.size(); i++) {

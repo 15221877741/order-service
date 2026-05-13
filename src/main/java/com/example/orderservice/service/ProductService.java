@@ -47,8 +47,8 @@ public class ProductService {
 
     public boolean reduceStock(Long productId, Integer quantity) {
         String lockKey = "stock:lock:" + productId;
-        Boolean locked = redisTemplate.opsForValue().setIfAbsent(lockKey, "1", 10, java.util.concurrent.TimeUnit.SECONDS);
-        if (Boolean.TRUE.equals(locked)) {
+//        Boolean locked = redisTemplate.opsForValue().setIfAbsent(lockKey, "1", 10, java.util.concurrent.TimeUnit.SECONDS);
+//        if (Boolean.TRUE.equals(locked)) {
             try {
                 Product product = getProduct(productId);
                 if (product == null || product.getStock() < quantity) {
@@ -61,8 +61,8 @@ public class ProductService {
             } finally {
                 redisTemplate.delete(lockKey);
             }
-        }
-        return false;
+//        }
+//        return false;
     }
 
     private void cacheProduct(Product product) {
