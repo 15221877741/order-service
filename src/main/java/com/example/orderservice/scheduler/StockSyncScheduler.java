@@ -20,7 +20,7 @@ public class StockSyncScheduler {
     private final StringRedisTemplate stringRedisTemplate;
     private final ProductDao productDao;
 
-    @Scheduled(fixedRate = 30000)
+    @Scheduled(fixedRate = 300000)
     public void syncStock() {
         log.info(">>>>>开始同步redis商品库存到数据库...");
         Set<String> keys = stringRedisTemplate.keys(STOCK_KEY_PREFIX + "*");

@@ -35,13 +35,21 @@ public class ProductService {
     private static final long CACHE_EXPIRE_SECONDS = 3600;
 
     private DefaultRedisScript<Long> reduceStockScript;
+    private DefaultRedisScript<Long> restoreStockScript;
 
     @PostConstruct
     public void init() {
+        // 初始化扣库存 Lua 脚本
         reduceStockScript = new DefaultRedisScript<>();
         reduceStockScript.setLocation(new ClassPathResource("lua/reduceStock.lua"));
         reduceStockScript.setResultType(Long.class);
 
+        // 初始化恢复库存 Lua 脚本
+        restoreStockScript = new DefaultRedisScript<>();
+        restoreStockScript.setLocation(new ClassPathResource("lua/restoreStock.lua"));
+        restoreStockScript.setResultType(Long.class);
+
+        // 启动时 DB → Redis 预热
         List<Product> products = productDao.selectList(null);
         for (Product product : products) {
             cacheProduct(product);
@@ -107,6 +115,17 @@ public class ProductService {
             throw new RuntimeException("商品不存在或缓存未预热: " + productId);
         }
         return result == 1;
+    }
+
+    /**
+     * 恢复库存（MQ 发送失败时补偿回滚）
+     */
+    public void restoreStockAtomic(Long productId, Integer quantity) {
+        stringRedisTemplate.execute(
+            restoreStockScript,
+            List.of(STOCK_KEY_PREFIX + productId, PRODUCT_CACHE_KEY + productId),
+            String.valueOf(quantity)
+        );
     }
 
     public boolean reduceStock(Long productId, Integer quantity) {

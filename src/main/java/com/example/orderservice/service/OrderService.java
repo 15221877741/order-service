@@ -5,6 +5,8 @@ import com.example.orderservice.dao.OrderDao;
 import com.example.orderservice.dao.OrderItemDao;
 import com.example.orderservice.entity.Order;
 import com.example.orderservice.entity.OrderItem;
+import com.example.orderservice.entity.OrderItemMessage;
+import com.example.orderservice.entity.OrderMessage;
 import com.example.orderservice.entity.Product;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.pagehelper.PageInfo;
@@ -44,59 +46,70 @@ public class OrderService {
         redisTemplate.delete(LIST_CACHE_KEY + userId);
     }
 
-    @Transactional
-    public Order createOrder(Long userId, List<?> productIds, List<?> quantities) {
-//        String submitKey = "order:submit:" + userId + ":" + productIds.hashCode();
-//        Boolean submitted = redisTemplate.opsForValue().setIfAbsent(submitKey, "1", 3, TimeUnit.SECONDS);
-//        if (!Boolean.TRUE.equals(submitted)) {
-//            throw new RuntimeException("请勿重复提交");
-//        }
+    /**
+     * 创建订单（异步落库）
+     * 1. 遍历商品，Lua 原子扣减 Redis 库存
+     * 2. 构建 OrderMessage 发到 MQ
+     * 3. MQ 发送失败时补偿恢复 Redis 库存
+     * 4. 无 DB 写入，无 @Transactional
+     */
+    public String createOrder(Long userId, List<?> productIds, List<?> quantities) {
         BigDecimal totalAmount = BigDecimal.ZERO;
+        List<OrderItemMessage> itemMessages = new ArrayList<>();
 
+        // 第一步：检查库存 + Lua 原子扣减
         for (int i = 0; i < productIds.size(); i++) {
             Long productId = ((Number) productIds.get(i)).longValue();
             Integer quantity = ((Number) quantities.get(i)).intValue();
             Product product = productService.getProduct(productId);
             if (product == null) {
-                throw new RuntimeException("Product not found: " + productId);
+                throw new RuntimeException("商品不存在: " + productId);
             }
             if (product.getStock() < quantity) {
-                throw new RuntimeException("Insufficient stock for product: " + product.getName());
+                throw new RuntimeException("库存不足: " + product.getName());
             }
-            boolean stockReduced = productService.reduceStock(productId, quantity);
+            boolean stockReduced = productService.reduceStockAtomic(productId, quantity);
             if (!stockReduced) {
-                throw new RuntimeException("没有库存了: " + product.getName());
+                throw new RuntimeException("扣减库存失败: " + product.getName());
             }
             totalAmount = totalAmount.add(product.getPrice().multiply(BigDecimal.valueOf(quantity)));
+
+            OrderItemMessage itemMsg = new OrderItemMessage();
+            itemMsg.setProductId(productId);
+            itemMsg.setProductName(product.getName());
+            itemMsg.setPrice(product.getPrice());
+            itemMsg.setQuantity(quantity);
+            itemMessages.add(itemMsg);
         }
 
-        Order order = new Order();
-        order.setOrderNo(UUID.randomUUID().toString().replace("-", ""));
-        order.setUserId(userId);
-        order.setTotalAmount(totalAmount);
-        order.setStatus(0);
-        order.setCreateTime(LocalDateTime.now());
-        order.setUpdateTime(LocalDateTime.now());
-        orderDao.insert(order);
+        // 第二步：构建 OrderMessage 发到 MQ
+        String orderNo = UUID.randomUUID().toString().replace("-", "");
+        OrderMessage msg = new OrderMessage();
+        msg.setOrderNo(orderNo);
+        msg.setUserId(userId);
+        msg.setTotalAmount(totalAmount);
+        msg.setStatus(0);
+        msg.setCreateTime(LocalDateTime.now());
+        msg.setItems(itemMessages);
 
-        for (int i = 0; i < productIds.size(); i++) {
-            Long productId = ((Number) productIds.get(i)).longValue();
-            Integer quantity = ((Number) quantities.get(i)).intValue();
-            Product product = productService.getProduct(productId);
-            OrderItem item = new OrderItem();
-            item.setOrderId(order.getId());
-            item.setProductId(productId);
-            item.setProductName(product.getName());
-            item.setPrice(product.getPrice());
-            item.setQuantity(quantity);
-            orderItemDao.insert(item);
+        try {
+            rabbitTemplate.convertAndSend(ORDER_QUEUE, msg);
+        } catch (Exception e) {
+            // MQ 发送失败 → 补偿恢复 Redis 库存
+            log.error("MQ 发送失败，正在补偿恢复库存 orderNo={}", orderNo, e);
+            for (int i = 0; i < productIds.size(); i++) {
+                Long productId = ((Number) productIds.get(i)).longValue();
+                Integer quantity = ((Number) quantities.get(i)).intValue();
+                productService.restoreStockAtomic(productId, quantity);
+            }
+            throw new RuntimeException("订单创建失败，MQ 不可用");
         }
 
-        rabbitTemplate.convertAndSend(ORDER_QUEUE, order);
+        // 清理订单列表/统计缓存
         clearStatsCache(userId);
         clearListCache(userId);
 
-        return order;
+        return orderNo;
     }
 
     public Order getOrder(Long orderId) {

@@ -1,7 +1,6 @@
 package com.example.orderservice.controller;
 
 import com.example.orderservice.common.Result;
-import com.example.orderservice.entity.Order;
 import com.example.orderservice.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -26,8 +25,8 @@ public class OrderController {
         List<?> productIds = (List<?>) request.get("productIds");
         @SuppressWarnings("unchecked")
         List<?> quantities = (List<?>) request.get("quantities");
-        Order order = orderService.createOrder(getCurrentUserId(), productIds, quantities);
-        return Result.success(order);
+        String orderNo = orderService.createOrder(getCurrentUserId(), productIds, quantities);
+        return Result.success(Map.of("orderNo", orderNo));
     }
 
     @GetMapping("/{id}")
