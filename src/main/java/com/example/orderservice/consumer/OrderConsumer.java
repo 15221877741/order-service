@@ -50,7 +50,7 @@ public class OrderConsumer {
     }
 
     // 定时兜底：防止最后不足 BATCH_SIZE 条时永远不刷
-    @Scheduled(fixedRate = 3000)
+    @Scheduled(fixedRate = 6000)
     public void flushPeriodically() {
         flushBatch();
     }
