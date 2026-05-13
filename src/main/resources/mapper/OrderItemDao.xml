@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.orderservice.dao.OrderItemDao">
+
+    <!-- 批量插入订单商品明细 -->
+    <insert id="batchInsertOrderItems">
+        INSERT INTO t_order_item(order_id, product_id, product_name, price, quantity)
+        VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.orderId}, #{item.productId}, #{item.productName}, #{item.price}, #{item.quantity})
+        </foreach>
+    </insert>
+
+</mapper>
