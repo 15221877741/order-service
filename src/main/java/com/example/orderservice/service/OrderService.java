@@ -9,6 +9,7 @@ import com.example.orderservice.entity.OrderItemMessage;
 import com.example.orderservice.entity.OrderMessage;
 import com.example.orderservice.entity.Product;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,15 +36,9 @@ public class OrderService {
 
     private static final String ORDER_QUEUE = "order.create";
     private static final String STATS_CACHE_KEY = "order:stats:";
-    private static final String LIST_CACHE_KEY = "order:list:";
-    private static final long LIST_CACHE_TTL = 120;
 
     private void clearStatsCache(Long userId) {
         redisTemplate.delete(STATS_CACHE_KEY + userId);
-    }
-
-    private void clearListCache(Long userId) {
-        redisTemplate.delete(LIST_CACHE_KEY + userId);
     }
 
     /**
@@ -105,9 +100,7 @@ public class OrderService {
             throw new RuntimeException("订单创建失败，MQ 不可用");
         }
 
-        // 清理订单列表/统计缓存
         clearStatsCache(userId);
-        clearListCache(userId);
 
         return orderNo;
     }
@@ -127,37 +120,10 @@ public class OrderService {
 
     public PageInfo<Order> getUserOrders(Long userId, Integer status, int page, int size) {
         log.info("分页查询订单 userId={}, status={}, page={}, size={}", userId, status, page, size);
-        String key = LIST_CACHE_KEY + userId;
-        List<Order> allOrders = getCachedOrderList(key);
-        if (allOrders == null) {
-            QueryWrapper<Order> wrapper = new QueryWrapper<>();
-            wrapper.eq("user_id", userId).orderByDesc("create_time");
-            allOrders = orderDao.selectList(wrapper);
-            batchEnrichOrders(allOrders);
-            redisTemplate.opsForValue().set(key, allOrders, LIST_CACHE_TTL, TimeUnit.SECONDS);
-        }
-
-        List<Order> filtered = allOrders;
-        if (status != null) {
-            filtered = allOrders.stream().filter(o -> status.equals(o.getStatus())).collect(Collectors.toList());
-        }
-
-        int total = filtered.size();
-        int totalPages = Math.max((int) Math.ceil((double) total / size), 1);
-        int fromIndex = Math.min((page - 1) * size, total);
-        int toIndex = Math.min(fromIndex + size, total);
-        List<Order> pageList = filtered.subList(fromIndex, toIndex);
-
-        PageInfo<Order> pageInfo = new PageInfo<>(pageList);
-        pageInfo.setPageNum(page);
-        pageInfo.setPageSize(size);
-        pageInfo.setTotal(total);
-        pageInfo.setPages(totalPages);
-        pageInfo.setIsFirstPage(page == 1);
-        pageInfo.setIsLastPage(page >= totalPages);
-        pageInfo.setHasNextPage(page < totalPages);
-        pageInfo.setHasPreviousPage(page > 1);
-        return pageInfo;
+        PageHelper.startPage(page, size);
+        List<Order> orders = orderDao.selectUserOrders(userId, status);
+        batchEnrichOrders(orders);
+        return new PageInfo<>(orders);
     }
 
     public Map<String, Long> getOrderStats(Long userId) {
@@ -190,23 +156,6 @@ public class OrderService {
         order.setTotalQuantity(items.stream().mapToInt(OrderItem::getQuantity).sum());
     }
 
-    @SuppressWarnings("unchecked")
-    private List<Order> getCachedOrderList(String key) {
-        Object cached = redisTemplate.opsForValue().get(key);
-        if (cached == null) return null;
-        if (cached instanceof List) {
-            List<?> list = (List<?>) cached;
-            if (!list.isEmpty() && list.get(0) instanceof Order) {
-                return (List<Order>) cached;
-            }
-            return list.stream()
-                    .map(item -> item instanceof LinkedHashMap ? objectMapper.convertValue(item, Order.class) : null)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
-        }
-        return null;
-    }
-
     private void batchEnrichOrders(List<Order> orders) {
         if (orders.isEmpty()) return;
         List<Long> orderIds = orders.stream().map(Order::getId).collect(Collectors.toList());
@@ -229,7 +178,6 @@ public class OrderService {
             order.setUpdateTime(LocalDateTime.now());
             orderDao.updateById(order);
             clearStatsCache(order.getUserId());
-            clearListCache(order.getUserId());
         }
     }
 
@@ -243,7 +191,6 @@ public class OrderService {
         }
         orderDao.deleteById(orderId);
         clearStatsCache(userId);
-        clearListCache(userId);
     }
 
     public void batchDeleteOrders(List<?> orderIds, Long userId) {
@@ -266,6 +213,5 @@ public class OrderService {
 
         orderDao.deleteBatchIds(validIds);
         clearStatsCache(userId);
-        clearListCache(userId);
     }
 }

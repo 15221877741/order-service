@@ -12,4 +12,14 @@
         </foreach>
     </insert>
 
+
+    <!-- 分页查询用户订单，PageHelper 自动追加 LIMIT 和 COUNT -->
+    <select id="selectUserOrders" resultType="com.example.orderservice.entity.Order">
+        SELECT id, order_no, user_id, total_amount, status, create_time, update_time
+        FROM t_order
+        WHERE user_id = #{userId}
+        <if test="status != null"> AND status = #{status}</if>
+        ORDER BY create_time DESC
+    </select>
+
 </mapper>
