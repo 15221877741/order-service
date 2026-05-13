@@ -6,6 +6,7 @@ com\example\orderservice\entity\Product.class
 com\example\orderservice\entity\Order.class
 com\example\orderservice\common\GlobalExceptionHandler.class
 com\example\orderservice\consumer\OrderConsumer.class
+com\example\orderservice\scheduler\StockSyncScheduler.class
 com\example\orderservice\controller\ProductController.class
 com\example\orderservice\controller\AuthController.class
 com\example\orderservice\config\RabbitMQConfig.class

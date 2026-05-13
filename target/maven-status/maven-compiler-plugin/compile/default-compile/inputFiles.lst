@@ -2,6 +2,7 @@ D:\opencodeworkspace\order-service\src\main\java\com\example\orderservice\dao\Pr
 D:\opencodeworkspace\order-service\src\main\java\com\example\orderservice\controller\OrderController.java
 D:\opencodeworkspace\order-service\src\main\java\com\example\orderservice\dao\OrderItemDao.java
 D:\opencodeworkspace\order-service\src\main\java\com\example\orderservice\entity\OrderItem.java
+D:\opencodeworkspace\order-service\src\main\java\com\example\orderservice\scheduler\StockSyncScheduler.java
 D:\opencodeworkspace\order-service\src\main\java\com\example\orderservice\service\OrderService.java
 D:\opencodeworkspace\order-service\src\main\java\com\example\orderservice\config\RabbitMQConfig.java
 D:\opencodeworkspace\order-service\src\main\java\com\example\orderservice\config\RedisConfig.java
