@@ -65,7 +65,7 @@ public class OrderService {
             }
             boolean stockReduced = productService.reduceStock(productId, quantity);
             if (!stockReduced) {
-                throw new RuntimeException("Failed to reduce stock for product: " + product.getName());
+                throw new RuntimeException("没有库存了: " + product.getName());
             }
             totalAmount = totalAmount.add(product.getPrice().multiply(BigDecimal.valueOf(quantity)));
         }

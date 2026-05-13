@@ -14,7 +14,9 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
@@ -48,6 +50,22 @@ public class ProductService {
     }
 
     public List<Product> listProducts() {
+        // Redis 优先：扫描 product:stock:* 获取所有商品 ID
+        Set<String> keys = stringRedisTemplate.keys(STOCK_KEY_PREFIX + "*");
+        if (keys != null && !keys.isEmpty()) {
+            List<Product> products = new ArrayList<>();
+            for (String key : keys) {
+                Long id = Long.parseLong(key.substring(STOCK_KEY_PREFIX.length()));
+                Product product = getProduct(id);
+                if (product != null) {
+                    products.add(product);
+                }
+            }
+            if (!products.isEmpty()) {
+                return products;
+            }
+        }
+        // Redis 无数据时回退 DB 查询并回填缓存
         List<Product> products = productDao.selectList(null);
         products.forEach(this::cacheProduct);
         return products;
