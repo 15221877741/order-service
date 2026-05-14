@@ -38,7 +38,7 @@ public class OrderConsumer {
 
     @RabbitListener(queues = RabbitMQConfig.ORDER_QUEUE)
     public void handleOrderCreated(OrderMessage msg) {
-        log.info(">>>rabbitmq消费消息：{}",msg);
+//        log.info(">>>rabbitmq消费消息：{}",msg);
         // 加入缓冲区，满 BATCH_SIZE 条后触发批量落库
         boolean shouldFlush;
         synchronized (lock) {
