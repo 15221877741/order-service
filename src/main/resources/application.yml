@@ -2,6 +2,9 @@ server:
   port: 8080
 
 spring:
+  config:
+    import: classpath:database.properties  # 引入 resources 目录下的文件
+
   datasource:
     url: jdbc:mysql://localhost:3306/order_db?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&createDatabaseIfNotExist=true
     username: root
@@ -20,7 +23,7 @@ spring:
       database: 0
 
   rabbitmq:
-    host: 43.133.251.236
+    host: ${rabbitmq.host}
     port: 5672
     username: admin
     password: admin

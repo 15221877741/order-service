@@ -62,7 +62,7 @@ public class StockSyncScheduler {
         // 一次批量更新
         if (!needUpdate.isEmpty()) {
             productDao.batchUpdateStock(needUpdate);
-            log.info(">>>>>同步redis商品数据完成：{} 个商品已更新", needUpdate.size());
         }
+        log.info(">>>>>同步redis商品数据完成：{} 个商品已更新", needUpdate.size());
     }
 }

@@ -38,6 +38,7 @@ public class OrderConsumer {
 
     @RabbitListener(queues = RabbitMQConfig.ORDER_QUEUE)
     public void handleOrderCreated(OrderMessage msg) {
+        log.info(">>>rabbitmq消费消息：{}",msg);
         // 加入缓冲区，满 BATCH_SIZE 条后触发批量落库
         boolean shouldFlush;
         synchronized (lock) {
@@ -123,12 +124,10 @@ public class OrderConsumer {
                 }
             }
         }
-
         // 一次 SQL 批量插入所有商品明细
         if (!allItems.isEmpty()) {
             orderItemDao.batchInsertOrderItems(allItems);
         }
-
         log.info("批量落库完成：{} 条订单，{} 条商品明细", newOrders.size(), allItems.size());
     }
 }
