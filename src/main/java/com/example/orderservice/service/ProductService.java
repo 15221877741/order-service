@@ -15,6 +15,7 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -70,6 +71,7 @@ public class ProductService {
                 }
             }
             if (!products.isEmpty()) {
+                products.sort(Comparator.comparing(Product::getId));
                 return products;
             }
         }
