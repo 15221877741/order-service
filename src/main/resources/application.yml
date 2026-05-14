@@ -27,6 +27,17 @@ spring:
     port: 5672
     username: admin
     password: admin
+    listener.simple:
+      # 积累 N 条后一次性投递给消费者方法
+      batch-size: 50
+      # 消费超时兜底 — 到达超时时间即使未满 batchSize 也触发投递
+      batch-timeout: 30000
+      # 启用批量消费模式（必须为 true 才能使 batch-size 生效）
+      consumer-batch-enabled: true
+      # 消费 — 同时运行 N 个消费者线程提升吞吐量
+      concurrency: 3
+      # 消费线程上限 — 可动态扩展的最大消费者数
+      max-concurrency: 10
 
 jwt:
   secret: D3j9kQ7mXn2rY5vB8wE1hG4sJ6uL0pO3iA8cF7tR2yU5nW1qK4zM9xV6bC0fH3

@@ -11,7 +11,6 @@ import com.example.orderservice.entity.OrderMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +22,16 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * RabbitMQ 订单消息消费者
+ * <p>
+ * 采用批量消费 + 并发多线程消费双重模式：
+ * <ul>
+ *   <li>批量消费：每批最多 ${batch-size} 条，${batch-timeout}毫秒 超时兜底，由 RabbitMQ 批量投递给 handleOrderBatch</li>
+ *   <li>并发消费：3~5 个消费者线程并发处理，提升吞吐量</li>
+ * </ul>
+ * 消费者方法直接接收 List&lt;OrderMessage&gt;，由 {@link #doBatchInsert(List)} 完成批量落库。
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -31,47 +40,37 @@ public class OrderConsumer {
     private final OrderDao orderDao;
     private final OrderItemDao orderItemDao;
 
-    private static final int BATCH_SIZE = 100;
-
-    private final List<OrderMessage> buffer = new ArrayList<>();
-    private final Object lock = new Object();
-
-    @RabbitListener(queues = RabbitMQConfig.ORDER_QUEUE)
-    public void handleOrderCreated(OrderMessage msg) {
-//        log.info(">>>rabbitmq消费消息：{}",msg);
-        // 加入缓冲区，满 BATCH_SIZE 条后触发批量落库
-        boolean shouldFlush;
-        synchronized (lock) {
-            buffer.add(msg);
-            shouldFlush = buffer.size() >= BATCH_SIZE;
-        }
-        if (shouldFlush) {
-            flushBatch();
-        }
-    }
-
-    // 定时兜底：防止最后不足 BATCH_SIZE 条时永远不刷
-    @Scheduled(fixedRate = 30*1000)
-    public void flushPeriodically() {
-        flushBatch();
+    /**
+     * 批量消费入口
+     * <p>
+     * 由 Spring AMQP 根据 batch-size 积累消息后批量投递，
+     * 这里直接转发给 doBatchInsert 进行批量落库。
+     *
+     * @param msgs 一个批次的订单消息（最多 100 条，超时未满也会投递）
+     */
+    @RabbitListener(queues = RabbitMQConfig.ORDER_QUEUE,
+                    containerFactory = "rabbitListenerContainerFactory")
+    public void handleOrderBatch(List<OrderMessage> msgs) {
+        if (msgs == null || msgs.isEmpty()) return;
+        doBatchInsert(msgs);
     }
 
     /**
-     * 批量落库：一次性提交所有订单 + 商品明细
+     * 批量落库：在一个事务内完成订单 + 商品明细的批量插入
+     * <p>
+     * 处理流程：
+     * <ol>
+     *   <li>幂等检查：根据 orderNo 查出已存在的订单，过滤重复消息</li>
+     *   <li>批量插入订单：一次性 SQL 批量插入，useGeneratedKeys 回写自增 id</li>
+     *   <li>组装商品明细：用回写的 orderId 关联对应商品记录</li>
+     *   <li>批量插入商品明细：一次 SQL 批量插入全部商品记录</li>
+     * </ol>
+     *
+     * @param batch 批次消息列表
      */
-    public synchronized void flushBatch() {
-        List<OrderMessage> batch;
-        synchronized (lock) {
-            if (buffer.isEmpty()) return;
-            batch = new ArrayList<>(buffer);
-            buffer.clear();
-        }
-        doBatchInsert(batch);
-    }
-
     @Transactional
     public void doBatchInsert(List<OrderMessage> batch) {
-        // 幂等检查：一次查出所有 orderNo，过滤已存在的
+        // 1. 收集所有 orderNo，幂等检查
         List<String> orderNos = batch.stream()
                 .map(OrderMessage::getOrderNo)
                 .collect(Collectors.toList());
@@ -81,11 +80,12 @@ public class OrderConsumer {
                 .map(Order::getOrderNo)
                 .collect(Collectors.toSet());
 
-        // 收集新订单 + 按 orderNo 暂存待插入的商品
+        // 2. 过滤重复消息，构建待插入订单列表
         List<Order> newOrders = new ArrayList<>();
         Map<String, List<OrderItemMessage>> pendingItems = new LinkedHashMap<>();
 
         for (OrderMessage msg : batch) {
+            // 已存在的订单直接跳过，防止重复落库
             if (existingNos.contains(msg.getOrderNo())) {
                 log.warn("跳过重复消息 orderNo={}", msg.getOrderNo());
                 continue;
@@ -98,17 +98,19 @@ public class OrderConsumer {
             order.setCreateTime(msg.getCreateTime());
             order.setUpdateTime(LocalDateTime.now());
             newOrders.add(order);
+            // 暂存商品明细，按 orderNo 索引，便于后续与 orderId 关联
             if (msg.getItems() != null) {
                 pendingItems.put(msg.getOrderNo(), msg.getItems());
             }
         }
 
+        // 无新订单时直接返回
         if (newOrders.isEmpty()) return;
 
-        // 一次 SQL 批量插入订单，useGeneratedKeys 自动回写 id
+        // 3. 批量插入订单，useGeneratedKeys 自动回写自增 id
         orderDao.batchInsertOrders(newOrders);
 
-        // 此时每个 order 已有 id，按 orderNo 匹配组装 OrderItem
+        // 4. 用回写的 orderId 组装商品明细
         List<OrderItem> allItems = new ArrayList<>();
         for (Order order : newOrders) {
             var itemMsgs = pendingItems.get(order.getOrderNo());
@@ -124,7 +126,8 @@ public class OrderConsumer {
                 }
             }
         }
-        // 一次 SQL 批量插入所有商品明细
+
+        // 5. 批量插入商品明细
         if (!allItems.isEmpty()) {
             orderItemDao.batchInsertOrderItems(allItems);
         }
