@@ -1,8 +1,6 @@
 # 急速订单系统
 
-## 演示地址
-
-<a href="http://43.133.251.236" target="_blank">演示地址</a>
+## <a href="http://43.133.251.236" target="_blank">演示地址</a>
 <a href="http://43.133.251.236" target="_blank" rel="noopener noreferrer">访问示例网站</a>
 
 高性能电商订单系统，基于 Spring Boot + Vue 3 构建，支持高并发场景下的毫秒级下单响应。
