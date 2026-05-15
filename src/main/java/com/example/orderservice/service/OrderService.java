@@ -128,9 +128,10 @@ public class OrderService {
 
     public Map<String, Long> getOrderStats(Long userId) {
         String key = STATS_CACHE_KEY + userId;
-        @SuppressWarnings("unchecked")
+        //不走缓存，直接数据库取
+        /*@SuppressWarnings("unchecked")
         Map<String, Long> cached = (Map<String, Long>) redisTemplate.opsForValue().get(key);
-        if (cached != null) return cached;
+        if (cached != null) return cached;*/
 
         List<Map<String, Object>> rows = orderDao.selectMaps(
                 new QueryWrapper<Order>()
@@ -145,7 +146,8 @@ public class OrderService {
         long completed = ((Number) row.get("completed")).longValue();
         long cancelled = ((Number) row.get("cancelled")).longValue();
         Map<String, Long> stats = Map.of("total", total, "pending", pending, "completed", completed, "cancelled", cancelled);
-        redisTemplate.opsForValue().set(key, stats, 30, TimeUnit.SECONDS);
+        //不走缓存，直接数据库取
+        /* redisTemplate.opsForValue().set(key, stats, 10, TimeUnit.SECONDS); */
         return stats;
     }
 
